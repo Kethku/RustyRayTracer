@@ -1,0 +1,7 @@
+[package]
+name = "RustyRayTracer"
+version = "0.1.0"
+authors = ["Keith Simmons <keith@the-simmons.net>"]
+
+[dependencies]
+glium = "*"
