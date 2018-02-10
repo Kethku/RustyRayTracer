@@ -1,68 +1,94 @@
-#[macro_use]
-extern crate glium;
+extern crate minifb;
+extern crate num_complex;
 
-use glutin::*;
-use glium::*;
-use glium::index::*;
+use minifb::{Window, Key, Scale, WindowOptions, MouseButton, MouseMode};
+use num_complex::Complex64;
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time;
+
+const WIDTH: usize = 1920;
+const HEIGHT: usize = 1080;
 
 fn main() {
-    let vertex_shader_src = r#"
-        #version 140
+    let mut view_width: f64 = 4.0;
+    let mut view_center: Complex64 = Complex64::new(0.0, 0.0);
 
-        in vec2 position;
+    let buffer = Arc::new(Mutex::new(vec![0; WIDTH * HEIGHT]));
 
-        void main() {
-            gl_Position = vec4(position, 0.0, 1.0);
+    let mut window = Window::new("Noise", WIDTH, HEIGHT,
+                                WindowOptions {
+                                    scale: Scale::X1,
+                                    ..WindowOptions::default()
+                                }).unwrap();
+
+    let mut right_down = false;
+    let mut left_down = false;
+
+    draw(&buffer, view_width, view_center);
+
+    while window.is_open() && !window.is_key_down(Key::Escape) {
+        thread::sleep(time::Duration::from_millis(16));
+        let new_left_down = window.get_mouse_down(MouseButton::Left);
+        if !new_left_down && left_down {
+            window.get_mouse_pos(MouseMode::Clamp).map(|mouse| {
+                view_center = to_view_port(mouse.0 as isize, mouse.1 as isize, view_width, view_center);
+                view_width = view_width * 0.6;
+            });
+            draw(&buffer, view_width, view_center);
         }
-    "#;
+        left_down = new_left_down;
 
-    let fragment_shader_src = r#"
-        #version 140
-        out vec4 color;
-
-        void main() {
-            color = vec4(1.0, 0.0, 0.0, 1.0);
+        let new_right_down = window.get_mouse_down(MouseButton::Right);
+        if !new_right_down && right_down {
+            view_center = Complex64::new(0.0, 0.0);
+            view_width = 4.0;
+            draw(&buffer, view_width, view_center);
         }
-    "#;
+        right_down = new_right_down;
 
-    use glium::{glutin, Surface};
-
-    let mut events_loop = EventsLoop::new();
-    let window = WindowBuilder::new();
-    let context = ContextBuilder::new();
-    let display = Display::new(window, context, &events_loop).unwrap();
-
-    #[derive(Copy, Clone)]
-    struct Vertex {
-        position: [f32; 2],
+        let buf = buffer.lock().unwrap();
+        window.update_with_buffer(&buf).unwrap();
     }
-    implement_vertex!(Vertex, position);
+}
 
-    let vertex1 = Vertex { position: [-0.5, -0.5] };
-    let vertex2 = Vertex { position: [0.0, 0.5] };
-    let vertex3 = Vertex { position: [0.5, -0.25] };
-    let shape = vec![vertex1, vertex2, vertex3];
+fn to_view_port(x: isize, y: isize, view_width: f64, view_center: Complex64) -> Complex64 {
+    let view_height = view_width * (HEIGHT as f64) / (WIDTH as f64);
+    Complex64::new(
+        (x - WIDTH as isize / 2) as f64 * view_width / WIDTH as f64,
+        (y - HEIGHT as isize / 2) as f64 * view_height / HEIGHT as f64) + view_center
+}
 
-    let vertex_buffer = VertexBuffer::new(&display, &shape).unwrap();
-    let indices = NoIndices(PrimitiveType::TrianglesList);
+fn draw(buffer: &Arc<Mutex<Vec<u32>>>, view_width: f64, view_center: Complex64) {
+    let thread_count = 8;
+    for i in 0..thread_count {
+        let buffer = Arc::clone(&buffer);
+        thread::spawn(move || {
+            for y in i * HEIGHT / thread_count..(i + 1) * HEIGHT / thread_count {
+                for x in 0..WIDTH {
+                    let c = to_view_port(x as isize, y as isize, view_width, view_center);
 
-    let program = glium::Program::from_source(&display, vertex_shader_src, fragment_shader_src, None).unwrap();
+                    let gray = match mandel(c) {
+                        Some(iters) => iters % 2 * 255,
+                        None => 0
+                    };
 
-    let mut closed = false;
-    while !closed {
-        let mut target = display.draw();
-        target.clear_color(0.0, 0.0, 1.0, 1.0);
-        target.draw(&vertex_buffer, &indices, &program, &uniforms::EmptyUniforms, &Default::default()).unwrap();
-        target.finish().unwrap();
-
-        events_loop.poll_events(|ev| {
-            match ev {
-                Event::WindowEvent { event, .. } => match event {
-                    WindowEvent::Closed => closed = true,
-                    _ => ()
-                },
-                _ => (),
+                    let mut buf = buffer.lock().unwrap();
+                    buf[x + y * WIDTH] = (gray << 16) | (gray << 8) | gray;
+                }
             }
-        })
+        });
     }
+}
+
+fn mandel(c: Complex64) -> Option<u32> {
+    let mut z = Complex64::new(0.0, 0.0);
+
+    for i in 0..500 {
+        z = z * z + c;
+        if z.norm_sqr() > 16.0 {
+            return Some(i);
+        }
+    }
+    return None;
 }
