@@ -5,3 +5,4 @@ authors = ["Keith Simmons <keith@the-simmons.net>"]
 
 [dependencies]
 minifb = "*"
+rand = "*"

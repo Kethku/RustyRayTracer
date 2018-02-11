@@ -1,6 +1,8 @@
 extern crate minifb;
+extern crate rand;
 
-use minifb::{Key, WindowOptions, Window};
+use minifb::{Key, WindowOptions, Window, Scale};
+use rand::*;
 
 mod color;
 mod vector;
@@ -9,18 +11,8 @@ mod distance_field;
 use vector::*;
 use distance_field::*;
 
-const WIDTH: usize = 640;
-const HEIGHT: usize = 360;
-
-const FIELD: Sphere = Sphere {
-    position: Vector {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0
-    },
-    radius: 5.0,
-    characteristics: Characteristics { }
-};
+const WIDTH: usize = 1920;
+const HEIGHT: usize = 1080;
 
 const UP: Vector = Vector {
     x: 0.0,
@@ -32,64 +24,62 @@ const FORWARD: Vector = Vector {
     x: 0.0,
     y: 0.0,
     z: 1.0
-}
+};
 
 fn main() {
+    let mut color_counts: Vec<u64> = vec![0; WIDTH * HEIGHT];
+    let mut acc_colors: Vec<Vector> = vec![Vector::zero(); WIDTH * HEIGHT];
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
+
+    let scene = Sphere::new(Vector::new(0.0, -55.0, 0.0), 50.0, Characteristics::matte()) +
+                Sphere::new(Vector::new(0.0, 0.0, 0.0), 5.0, Characteristics::mirror());
 
     let mut window = Window::new("Test - ESC to exit",
                                  WIDTH,
                                  HEIGHT,
-                                 WindowOptions::default()).unwrap_or_else(|e| {
-                                     panic!("{}", e);
-                                 });
+                                WindowOptions {
+                                    scale: Scale::FitScreen,
+                                    ..WindowOptions::default()
+                                }).unwrap();
 
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let start_position = Vector {
-            x: 0,
-            y: 0,
-            z: -10.0
+            x: 0.0,
+            y: 0.0,
+            z: -50.0
         };
         let target = start_position + FORWARD;
         let right = FORWARD.cross(UP).normalize();
 
-        for x in 0..WIDTH {
-            for y in 0..HEIGHT {
-                let (new_position, _) = march(
-                    &FIELD,
-                    start_position,
-                    Vector {
-                        x: 0.0,
-                        y: 0.0,
-                        z: 1.0
-                    },
-                    5000.0
-                );
+        for _ in 0..100000 {
+            let half_width = WIDTH as f64 / 2.0;
+            let half_height = HEIGHT as f64 / 2.0;
+            let x = thread_rng().gen_range(0.0, WIDTH as f64);
+            let y = thread_rng().gen_range(0.0, HEIGHT as f64);
+            let scene_x = (x - half_width) / WIDTH as f64;
+            let scene_y = -(y - half_height) / WIDTH as f64;
 
-                let mut dist = (new_position - start_position).length();
+            let target = target + right * scene_x + UP * scene_y;
+            let dir = (target - start_position).normalize();
+            let color = scene.trace(
+                Vector::one(),
+                start_position,
+                dir,
+                5000.0
+            );
 
-                if dist > 255.0 {
-                    dist = 255.0;
-                }
+            let i = x as usize + y as usize * WIDTH;
 
-                buffer[x + y * WIDTH] = (dist as u32) << 16 | (dist as u32) << 8 | (dist as u32);
-            }
+            let mut acc_color = acc_colors[i] + color;
+            acc_colors[i] = acc_color;
+            let color_count = color_counts[i] + 1;
+            color_counts[i] = color_count;
+
+            acc_color = acc_color / color_count as f64;
+
+            buffer[i] = ((acc_color.x * 255.0) as u32) << 16 | ((acc_color.y * 255.0) as u32) << 8 | ((acc_color.z * 255.0) as u32);
         }
 
-        // We unwrap here as we want this code to exit if it fails. Real applications may want to handle this in a different way
         window.update_with_buffer(&buffer).unwrap();
-    }
-}
-
-const MINIMUM_THRESHOLD: f64 = 0.001;
-fn march<T: Field>(field: &T, position: Vector, direction: Vector, max_distance: f64) -> (Vector, Characteristics) {
-    let distance = field.distance_sampler(position);
-
-    if distance < MINIMUM_THRESHOLD || max_distance < 0.0 {
-        field.characteristic_sampler(position)
-    } else {
-        let new_position = position + (direction * distance);
-        let jump_distance = (new_position - position).length();
-        march(field, new_position, direction, max_distance - jump_distance)
     }
 }
