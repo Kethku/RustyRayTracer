@@ -1,5 +1,5 @@
-use std::ops::*;
 use vector::*;
+use scene::*;
 
 #[derive(Copy, Clone)]
 pub struct Characteristics {
@@ -17,7 +17,7 @@ impl Characteristics {
             color: color,
             roughness: 0.0,
             reflectance: 1.0,
-            absorbance: 0.1
+            absorbance: 0.2
         }
     }
 
@@ -27,7 +27,7 @@ impl Characteristics {
             color: color,
             roughness: 1.0,
             reflectance: 0.0,
-            absorbance: 0.1
+            absorbance: 0.2
         }
     }
 }

@@ -1,8 +1,10 @@
 use std::ops::*;
 use vector::*;
+use distance_field::*;
+use rand::*;
 
 pub struct Scene<T: Field> {
-    field: T
+    pub field: T
 }
 
 const MINIMUM_THRESHOLD: f64 = 0.01;
