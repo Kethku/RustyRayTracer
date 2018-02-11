@@ -12,20 +12,20 @@ pub struct Characteristics {
 }
 
 impl Characteristics {
-    pub fn mirror() -> Characteristics {
+    pub fn mirror(color: Vector) -> Characteristics {
         Characteristics {
             normal: Vector::zero(),
-            color: Vector::one(),
+            color: color,
             roughness: 0.0,
             reflectance: 1.0,
             absorbance: 0.1
         }
     }
 
-    pub fn matte() -> Characteristics {
+    pub fn matte(color: Vector) -> Characteristics {
         Characteristics {
             normal: Vector::zero(),
-            color: Vector::one(),
+            color: color,
             roughness: 1.0,
             reflectance: 0.0,
             absorbance: 0.1
@@ -98,6 +98,35 @@ impl<T1: Field, T2: Field> Field for Union<T1, T2> {
     }
 }
 
+pub struct Intersection<T1: Field, T2: Field> {
+    pub field1: T1,
+    pub field2: T2
+}
+
+impl<T1: Field, T2: Field> Field for Intersection<T1, T2> {
+    fn distance_sampler(&self, pos: Vector) -> f64 {
+        let dist1 = self.field1.distance_sampler(pos);
+        let dist2 = self.field2.distance_sampler(pos);
+
+        if dist1 > dist2 {
+            dist1
+        } else {
+            dist2
+        }
+    }
+
+    fn characteristic_sampler(&self, pos: Vector) -> (Vector, Characteristics) {
+        let dist1 = self.field1.distance_sampler(pos);
+        let dist2 = self.field2.distance_sampler(pos);
+
+        if dist1 > dist2 {
+            self.field1.characteristic_sampler(pos)
+        } else {
+            self.field2.characteristic_sampler(pos)
+        }
+    }
+}
+
 pub struct Scene<T: Field> {
     field: T
 }
@@ -124,12 +153,12 @@ impl<T: Field> Scene<T> {
         }
     }
 
-    pub fn trace(&self, transfered_color: Vector, position: Vector, direction: Vector, max_distance: f64) -> Vector {
+    pub fn trace(&self, position: Vector, direction: Vector, max_distance: f64) -> Vector {
         let (pos, characteristics) = self.march(position, direction, max_distance);
         let march_distance = (pos - position).length();
         let remaining_distance = max_distance - march_distance;
         if remaining_distance < 0.0 {
-            transfered_color
+            Vector::one()
         } else {
             let new_pos = pos + characteristics.normal * MINIMUM_THRESHOLD;
             let mut new_dir = characteristics.normal + Vector::random();
@@ -143,7 +172,7 @@ impl<T: Field> Scene<T> {
 
             let material_color = Vector::interpolate(characteristics.color, Vector::one(), characteristics.reflectance) * (1.0 - characteristics.absorbance);
 
-            self.trace(material_color * transfered_color, new_pos, new_dir, remaining_distance)
+            material_color * self.trace(new_pos, new_dir, remaining_distance)
         }
     }
 }
@@ -154,6 +183,19 @@ impl<T1: Field, T2: Field> Add<Scene<T2>> for Scene<T1> {
     fn add(self, rhs: Scene<T2>) -> Scene<Union<T1, T2>> {
         Scene {
             field: Union {
+                field1: self.field,
+                field2: rhs.field
+            }
+        }
+    }
+}
+
+impl<T1: Field, T2: Field> Mul<Scene<T2>> for Scene<T1> {
+    type Output = Scene<Intersection<T1, T2>>;
+
+    fn mul(self, rhs: Scene<T2>) -> Scene<Intersection<T1, T2>> {
+        Scene {
+            field: Intersection {
                 field1: self.field,
                 field2: rhs.field
             }

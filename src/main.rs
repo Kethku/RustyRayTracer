@@ -11,8 +11,8 @@ mod distance_field;
 use vector::*;
 use distance_field::*;
 
-const WIDTH: usize = 1920;
-const HEIGHT: usize = 1080;
+const WIDTH: usize = 1500;
+const HEIGHT: usize = 1000;
 
 const UP: Vector = Vector {
     x: 0.0,
@@ -20,19 +20,19 @@ const UP: Vector = Vector {
     z: 0.0
 };
 
-const FORWARD: Vector = Vector {
-    x: 0.0,
-    y: 0.0,
-    z: 1.0
-};
-
 fn main() {
     let mut color_counts: Vec<u64> = vec![0; WIDTH * HEIGHT];
     let mut acc_colors: Vec<Vector> = vec![Vector::zero(); WIDTH * HEIGHT];
     let mut buffer: Vec<u32> = vec![0; WIDTH * HEIGHT];
 
-    let scene = Sphere::new(Vector::new(0.0, -55.0, 0.0), 50.0, Characteristics::matte()) +
-                Sphere::new(Vector::new(0.0, 0.0, 0.0), 5.0, Characteristics::mirror());
+    let forward = (Vector {
+        x: 0.0,
+        y: -0.5,
+        z: 1.0
+    }).normalize();
+
+    let scene = Sphere::new(Vector::new(0.0, -55.0, 0.0), 50.0, Characteristics::matte(Vector::one())) *
+        Sphere::new(Vector::new(0.0, -2.0, 0.0), 5.0, Characteristics::matte(Vector::one()));
 
     let mut window = Window::new("Test - ESC to exit",
                                  WIDTH,
@@ -45,11 +45,11 @@ fn main() {
     while window.is_open() && !window.is_key_down(Key::Escape) {
         let start_position = Vector {
             x: 0.0,
-            y: 0.0,
+            y: 25.0,
             z: -50.0
         };
-        let target = start_position + FORWARD;
-        let right = FORWARD.cross(UP).normalize();
+        let target = start_position + forward;
+        let right = forward.cross(UP).normalize();
 
         for _ in 0..100000 {
             let half_width = WIDTH as f64 / 2.0;
@@ -62,7 +62,6 @@ fn main() {
             let target = target + right * scene_x + UP * scene_y;
             let dir = (target - start_position).normalize();
             let color = scene.trace(
-                Vector::one(),
                 start_position,
                 dir,
                 5000.0
@@ -77,7 +76,22 @@ fn main() {
 
             acc_color = acc_color / color_count as f64;
 
-            buffer[i] = ((acc_color.x * 255.0) as u32) << 16 | ((acc_color.y * 255.0) as u32) << 8 | ((acc_color.z * 255.0) as u32);
+            let r = match acc_color.x * 255.0 {
+                r if r > 255.0 => 255.0,
+                r => r
+            };
+
+            let g = match acc_color.y * 255.0 {
+                g if g > 255.0 => 255.0,
+                g => g
+            };
+
+            let b = match acc_color.z * 255.0 {
+                b if b > 255.0 => 255.0,
+                b => b
+            };
+
+            buffer[i] = (r as u32) << 16 | (g as u32) << 8 | (b as u32);
         }
 
         window.update_with_buffer(&buffer).unwrap();
