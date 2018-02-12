@@ -11,6 +11,16 @@ pub struct Characteristics {
 }
 
 impl Characteristics {
+    pub fn default() -> Characteristics {
+        Characteristics {
+            normal: Vector::zero(),
+            color: Vector::zero(),
+            roughness: 0.0,
+            reflectance: 0.0,
+            absorbance: 0.0
+        }
+    }
+
     pub fn mirror(color: Vector) -> Characteristics {
         Characteristics {
             normal: Vector::zero(),
@@ -65,6 +75,20 @@ impl Field for Sphere {
             normal: (pos - self.position).normalize(),
             .. self.characteristics
         })
+    }
+}
+
+pub struct Negate<T: Field> {
+    pub field: T
+}
+
+impl<T: Field> Field for Negate<T> {
+    fn distance_sampler(&self, pos: Vector) -> f64 {
+        -self.field.distance_sampler(pos)
+    }
+
+    fn characteristic_sampler(&self, pos: Vector) -> (Vector, Characteristics) {
+        self.field.characteristic_sampler(pos)
     }
 }
 

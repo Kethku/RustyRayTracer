@@ -11,12 +11,13 @@ use std::thread;
 mod vector;
 mod distance_field;
 mod scene;
+mod atmosphere;
 
 use vector::*;
 use distance_field::*;
 
-const WIDTH: usize = 1500;
-const HEIGHT: usize = 1000;
+const WIDTH: usize = 150;
+const HEIGHT: usize = 100;
 
 const UP: Vector = Vector {
     x: 0.0,
@@ -62,10 +63,10 @@ fn main() {
     let half_width = WIDTH as f64 / 2.0;
     let half_height = HEIGHT as f64 / 2.0;
 
-    let iterations = 10;
+    let iterations = 100;
 
-    let thread_count = 8;
-    for thread_i in 0..thread_count {
+    let thread_count = 1;
+    for _ in 0..thread_count {
         let scene = scene.clone();
         let color_counts_mutex = color_counts_mutex.clone();
         let acc_colors_mutex = acc_colors_mutex.clone();
@@ -75,56 +76,54 @@ fn main() {
             loop {
                 let mut acc_color = Vector::zero();
                 let mut rng = thread_rng();
-                for y in 0..HEIGHT {
-                    for x in 0..WIDTH {
-                        for _ in 0..iterations {
-                            let scene_x = (x as f64 - half_width) / WIDTH as f64 + rng.gen_range(0.0, pixel_width);
-                            let scene_y = -(y as f64 - half_height) / WIDTH as f64 + rng.gen_range(0.0, pixel_height);
+                let x = rng.gen_range(0, WIDTH);
+                let y = rng.gen_range(0, HEIGHT);
+                for _ in 0..iterations {
+                    let scene_x = (x as f64 - half_width) / WIDTH as f64 + rng.gen_range(0.0, pixel_width);
+                    let scene_y = -(y as f64 - half_height) / WIDTH as f64 + rng.gen_range(0.0, pixel_height);
 
-                            let target = target + right * scene_x + UP * scene_y;
-                            let dir = (target - start_position).normalize();
+                    let target = target + right * scene_x + UP * scene_y;
+                    let dir = (target - start_position).normalize();
 
-                            acc_color = acc_color + scene.trace(
-                                start_position,
-                                dir,
-                                5000.0
-                            );
-                        }
-
-                        let i = x as usize + y as usize * WIDTH;
-
-                        let mut color_count: u64;
-
-                        {
-                            let mut acc_colors = acc_colors_mutex.lock().unwrap();
-                            acc_color = acc_colors[i] + acc_color;
-                            acc_colors[i] = acc_color;
-                            let mut color_counts = color_counts_mutex.lock().unwrap();
-                            color_count = color_counts[i] + iterations;
-                            color_counts[i] = color_count;
-                        }
-
-                        acc_color = acc_color / color_count as f64;
-
-                        let r = match acc_color.x * 255.0 {
-                            r if r > 255.0 => 255.0,
-                            r => r
-                        };
-
-                        let g = match acc_color.y * 255.0 {
-                            g if g > 255.0 => 255.0,
-                            g => g
-                        };
-
-                        let b = match acc_color.z * 255.0 {
-                            b if b > 255.0 => 255.0,
-                            b => b
-                        };
-
-                        let mut buffer = buffer_mutex.lock().unwrap();
-                        buffer[i] = (r as u32) << 16 | (g as u32) << 8 | (b as u32);
-                    }
+                    acc_color = acc_color + scene.trace(
+                        start_position,
+                        dir,
+                        5000.0
+                    );
                 }
+
+                let i = x as usize + y as usize * WIDTH;
+
+                let mut color_count: u64;
+
+                {
+                    let mut acc_colors = acc_colors_mutex.lock().unwrap();
+                    acc_color = acc_colors[i] + acc_color;
+                    acc_colors[i] = acc_color;
+                    let mut color_counts = color_counts_mutex.lock().unwrap();
+                    color_count = color_counts[i] + iterations;
+                    color_counts[i] = color_count;
+                }
+
+                acc_color = acc_color / color_count as f64;
+
+                let r = match acc_color.x * 255.0 {
+                    r if r > 255.0 => 255.0,
+                    r => r
+                };
+
+                let g = match acc_color.y * 255.0 {
+                    g if g > 255.0 => 255.0,
+                    g => g
+                };
+
+                let b = match acc_color.z * 255.0 {
+                    b if b > 255.0 => 255.0,
+                    b => b
+                };
+
+                let mut buffer = buffer_mutex.lock().unwrap();
+                buffer[i] = (r as u32) << 16 | (g as u32) << 8 | (b as u32);
             }
         });
     }
