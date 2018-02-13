@@ -16,8 +16,8 @@ mod atmosphere;
 use vector::*;
 use distance_field::*;
 
-const WIDTH: usize = 150;
-const HEIGHT: usize = 100;
+const WIDTH: usize = 480;
+const HEIGHT: usize = 270;
 
 const UP: Vector = Vector {
     x: 0.0,
@@ -32,7 +32,7 @@ fn main() {
 
     let forward = (Vector {
         x: 0.0,
-        y: -0.5,
+        y: 0.0,
         z: 1.0
     }).normalize();
 
@@ -43,13 +43,13 @@ fn main() {
                                  WIDTH,
                                  HEIGHT,
                                 WindowOptions {
-                                    scale: Scale::FitScreen,
+                                    scale: Scale::X4,
                                     ..WindowOptions::default()
                                 }).unwrap();
     let start_position = Vector {
         x: 0.0,
-        y: 25.0,
-        z: -50.0
+        y: 0.0,
+        z: -100.0
     };
     let target = start_position + forward;
     let right = forward.cross(UP).normalize();
@@ -63,9 +63,9 @@ fn main() {
     let half_width = WIDTH as f64 / 2.0;
     let half_height = HEIGHT as f64 / 2.0;
 
-    let iterations = 100;
+    let iterations = 1;
 
-    let thread_count = 1;
+    let thread_count = 4;
     for _ in 0..thread_count {
         let scene = scene.clone();
         let color_counts_mutex = color_counts_mutex.clone();

@@ -39,7 +39,7 @@ impl<T: Field> Scene<T> {
         let march_distance = (pos - position).length();
         let remaining_distance = max_distance - march_distance;
         if remaining_distance < 0.0 {
-            calculate_sky_color(pos, direction, Vector::one())
+            calculate_sky_color(direction, Vector::new(0.0, 0.0, 1.0).normalize())
         } else {
             let new_pos = pos + characteristics.normal * MINIMUM_THRESHOLD;
             let mut new_dir = characteristics.normal + Vector::random();

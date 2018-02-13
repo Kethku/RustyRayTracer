@@ -20,13 +20,14 @@ const RAYLEIGH_EXTINCTION_COEFFICIENTS_AT_SEA_LEVEL: Vector = Vector {
     z: 33.1e-6
 };
 
-pub fn calculate_sky_color(position: Vector, direction: Vector, sun_direction: Vector) -> Vector {
+pub fn calculate_sky_color(direction: Vector, sun_direction: Vector) -> Vector {
     let atmosphere_geometry =
         Sphere::new(Vector::zero(), PLANET_RADIUS, Characteristics::default()) +
         !Sphere::new(Vector::zero(), ATMOSPHERE_RADIUS, Characteristics::default());
     let position = Vector {
-        y: position.y + PLANET_RADIUS + 100.0,
-        .. position
+        y: PLANET_RADIUS + 100.0,
+        x: 0.0,
+        z: 0.0
     };
 
     let view_interesect = atmosphere_intersection(&atmosphere_geometry, position, direction);
@@ -38,13 +39,11 @@ pub fn calculate_sky_color(position: Vector, direction: Vector, sun_direction: V
         let sun_intersect = atmosphere_intersection(&atmosphere_geometry, pos, sun_direction);
         let atmosphere_height = pos.length() - PLANET_RADIUS;
 
-        Vector::one()
-
-        // let trans_camera_to_pos = transmittance(position, pos);
-        // let trans_pos_to_sky = transmittance(pos, sun_intersect);
-        // let ray_extinction = rayleigh_phase * rayleigh_extinction_coefficients(atmosphere_height);
-        // let mei_extinction = mei_phase * mei_extinction_coefficients(atmosphere_height);
-        // SUN_INTENSITY * trans_camera_to_pos * trans_pos_to_sky * (ray_extinction + mei_extinction)
+        let trans_camera_to_pos = transmittance(position, pos);
+        let trans_pos_to_sky = transmittance(pos, sun_intersect);
+        let ray_extinction = rayleigh_phase * rayleigh_extinction_coefficients(atmosphere_height);
+        let mei_extinction = mei_phase * mei_extinction_coefficients(atmosphere_height);
+        SUN_INTENSITY * trans_camera_to_pos * trans_pos_to_sky * (ray_extinction + mei_extinction)
     });
     color
 }
@@ -64,6 +63,9 @@ fn transmittance(a: Vector, b: Vector) -> Vector {
 
 fn numerical_integration<F>(a: Vector, b: Vector, body: F) -> Vector
     where F: Fn(Vector) -> Vector {
+    if a == b {
+        return Vector::zero();
+    }
     let mut current_pos = a;
     let diff = b - a;
     let dir = diff.normalize();
@@ -107,8 +109,6 @@ fn mei_phase_function(mu: f64) -> f64 {
 fn atmosphere_intersection<T: Field>(atmosphere_scene: &Scene<T>, position: Vector, direction: Vector) -> Vector {
     let max_distance = ATMOSPHERE_RADIUS * 2.0;
     let min_distance = ATMOSPHERE_RADIUS / 1000.0;
-    println!("max: {:?}", max_distance);
-    println!("min: {:?}", min_distance);
     let (new_position, _) = atmosphere_scene.march(position, direction, max_distance, min_distance);
     new_position
 }

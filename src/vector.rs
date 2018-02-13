@@ -4,7 +4,7 @@ use std::f64::*;
 use std::ops::*;
 use rand::*;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(PartialEq, Debug, Copy, Clone)]
 pub struct Vector {
     pub x: f64,
     pub y: f64,
