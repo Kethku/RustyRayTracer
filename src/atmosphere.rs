@@ -34,24 +34,18 @@ pub fn calculate_sky_color(position: Vector, direction: Vector, sun_direction: V
     let rayleigh_phase = rayleigh_phase_function(mu);
     let mei_phase = mei_phase_function(mu);
 
-    println!("view: {:?}", view_interesect);
-    println!("mu: {:?}", mu);
-    println!("rayleigh_phase: {:?}", rayleigh_phase);
-    println!("mei_phase: {:?}", mei_phase);
-
     let color = numerical_integration(position, view_interesect, |pos| {
         let sun_intersect = atmosphere_intersection(&atmosphere_geometry, pos, sun_direction);
         let atmosphere_height = pos.length() - PLANET_RADIUS;
 
-        let trans_camera_to_pos = transmittance(position, pos);
-        let trans_pos_to_sky = transmittance(pos, sun_intersect);
-        let ray_extinction = rayleigh_phase * rayleigh_extinction_coefficients(atmosphere_height);
-        let mei_extinction = mei_phase * mei_extinction_coefficients(atmosphere_height);
-        SUN_INTENSITY * trans_camera_to_pos * trans_pos_to_sky * (ray_extinction + mei_extinction)
+        Vector::one()
+
+        // let trans_camera_to_pos = transmittance(position, pos);
+        // let trans_pos_to_sky = transmittance(pos, sun_intersect);
+        // let ray_extinction = rayleigh_phase * rayleigh_extinction_coefficients(atmosphere_height);
+        // let mei_extinction = mei_phase * mei_extinction_coefficients(atmosphere_height);
+        // SUN_INTENSITY * trans_camera_to_pos * trans_pos_to_sky * (ray_extinction + mei_extinction)
     });
-
-    println!("{:?}", color);
-
     color
 }
 
@@ -107,11 +101,14 @@ fn mei_phase_function(mu: f64) -> f64 {
     let coefficient = 3.0 / (8.0 * consts::PI);
     let numerator = (1.0 - g * g) * (1.0 + mu * mu);
     let denominator = (2.0 + g * g) * (1.0 + g * g - 2.0 * g * mu).powf(3.0 / 2.0);
-    println!("denominator: {:?}", denominator);
     coefficient * numerator / denominator
 }
 
 fn atmosphere_intersection<T: Field>(atmosphere_scene: &Scene<T>, position: Vector, direction: Vector) -> Vector {
-    let (new_position, _) = atmosphere_scene.march(position, direction, ATMOSPHERE_RADIUS * 2.0, ATMOSPHERE_RADIUS / 100000.0);
+    let max_distance = ATMOSPHERE_RADIUS * 2.0;
+    let min_distance = ATMOSPHERE_RADIUS / 1000.0;
+    println!("max: {:?}", max_distance);
+    println!("min: {:?}", min_distance);
+    let (new_position, _) = atmosphere_scene.march(position, direction, max_distance, min_distance);
     new_position
 }
