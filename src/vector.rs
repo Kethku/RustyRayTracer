@@ -41,6 +41,25 @@ impl Vector {
         self.x * other.x + self.y * other.y + self.z * other.z
     }
 
+    pub fn to_int_color(self) -> u32 {
+        let r = match self.x * 255.0 {
+            r if r > 255.0 => 255.0,
+            r => r
+        };
+
+        let g = match self.y * 255.0 {
+            g if g > 255.0 => 255.0,
+            g => g
+        };
+
+        let b = match self.z * 255.0 {
+            b if b > 255.0 => 255.0,
+            b => b
+        };
+
+        (r as u32) << 16 | (g as u32) << 8 | (b as u32)
+    }
+
     pub fn interpolate(a: Vector, b: Vector, amount: f64) -> Vector {
         a * (1.0 - amount) + b * amount
     }
