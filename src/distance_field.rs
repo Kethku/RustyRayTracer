@@ -1,46 +1,6 @@
 use vector::*;
 use scene::*;
-
-#[derive(Copy, Clone)]
-pub struct Characteristics {
-    pub normal: Vector,
-    pub color: Vector,
-    pub roughness: f64,
-    pub reflectance: f64,
-    pub absorbance: f64
-}
-
-impl Characteristics {
-    pub fn default() -> Characteristics {
-        Characteristics {
-            normal: Vector::zero(),
-            color: Vector::zero(),
-            roughness: 0.0,
-            reflectance: 0.0,
-            absorbance: 0.0
-        }
-    }
-
-    pub fn mirror(color: Vector) -> Characteristics {
-        Characteristics {
-            normal: Vector::zero(),
-            color: color,
-            roughness: 0.0,
-            reflectance: 1.0,
-            absorbance: 0.2
-        }
-    }
-
-    pub fn matte(color: Vector) -> Characteristics {
-        Characteristics {
-            normal: Vector::zero(),
-            color: color,
-            roughness: 1.0,
-            reflectance: 0.0,
-            absorbance: 0.2
-        }
-    }
-}
+use characteristics::*;
 
 pub trait Field {
     fn distance_sampler(&self, Vector) -> f64;
@@ -75,6 +35,37 @@ impl Field for Sphere {
             normal: (pos - self.position).normalize(),
             .. self.characteristics
         })
+    }
+}
+
+pub struct Plane {
+    pub normal: Vector,
+    pub distance: f64,
+    pub characteristics: Characteristics
+}
+
+impl Plane {
+    pub fn new(normal: Vector, distance: f64, chars: Characteristics) -> Scene<Plane> {
+        Scene {
+            field: Plane {
+                normal: normal,
+                distance: distance,
+                characteristics: Characteristics {
+                    normal: normal,
+                    ..chars
+                }
+            }
+        }
+    }
+}
+
+impl Field for Plane {
+    fn distance_sampler(&self, pos: Vector) -> f64 {
+        pos.dot(self.normal) - self.distance
+    }
+
+    fn characteristic_sampler(&self, pos: Vector) -> (Vector, Characteristics) {
+        (pos, self.characteristics)
     }
 }
 

@@ -7,19 +7,22 @@ use std::sync::{Arc, Mutex};
 use minifb::{Key, WindowOptions, Window, Scale};
 use rand::*;
 use std::thread;
+use std::f64::*;
 
 mod vector;
 mod distance_field;
 mod scene;
 mod atmosphere;
+mod characteristics;
 
 use vector::*;
 use distance_field::*;
 use atmosphere::*;
+use characteristics::*;
 
-const WIDTH: usize = 500;
-const HEIGHT: usize = 500;
-const THREAD_COUNT: usize = 8;
+const WIDTH: usize = 300;
+const HEIGHT: usize = 200;
+const THREAD_COUNT: usize = 1;
 
 const UP: Vector = Vector {
     x: 0.0,
@@ -32,6 +35,8 @@ fn main() {
     let acc_colors_mutex = Arc::new(Mutex::new(vec![Vector::zero(); WIDTH * HEIGHT]));
     let buffer_mutex = Arc::new(Mutex::new(vec![0; WIDTH * HEIGHT]));
 
+    let finished_mutex = Arc::new(Mutex::new(vec![false; THREAD_COUNT]));
+
     let mut window = Window::new("Test - ESC to exit",
                                 WIDTH,
                                 HEIGHT,
@@ -41,23 +46,32 @@ fn main() {
                                 }).unwrap();
 
     {
+        let mut sun_theta: f64 = 0.0;
         for t in 0..THREAD_COUNT {
             let buffer_mutex = buffer_mutex.clone();
+            let finished_mutex = finished_mutex.clone();
             thread::spawn(move || {
-                for j in t * (HEIGHT / THREAD_COUNT)..(t + 1) * (HEIGHT / THREAD_COUNT) {
-                    let y = 2.0 * (j as f64 + 0.5) / (HEIGHT as f64 - 1.0) - 1.0;
-                    for i in 0..WIDTH {
-                        let x = 2.0 * (i as f64 + 0.5) / (WIDTH as f64 - 1.0) - 1.0;
-                        let z2 = x * x + y * y;
-                        if z2 <= 1.0 {
-                            let phi = x.atan2(y);
-                            let theta = (1.0 - z2).acos();
-                            let dir = Vector::new(theta.sin() * phi.cos(), theta.cos(), theta.sin() * phi.sin());
-                            let color = calculate_sky_color(dir, Vector::new(0.0, 0.0, 1.0));
-                            let mut buffer = buffer_mutex.lock().unwrap();
-                            buffer[i + WIDTH * j] = color.to_int_color();
+                loop {
+                    let sun_dir = Vector::new(sun_theta.cos(), sun_theta.sin(), 0.0);
+                    for j in t * (HEIGHT / THREAD_COUNT)..(t + 1) * (HEIGHT / THREAD_COUNT) {
+                        let y = 2.0 * (j as f64 + 0.5) / (HEIGHT as f64 - 1.0) - 1.0;
+                        for i in 0..WIDTH {
+                            let x = 2.0 * (i as f64 + 0.5) / (WIDTH as f64 - 1.0) - 1.0;
+                            let z2 = x * x + y * y;
+                            if z2 <= 1.0 {
+                                let phi = x.atan2(y);
+                                let theta = (1.0 - z2).acos();
+                                let dir = Vector::new(theta.sin() * phi.cos(), theta.cos(), theta.sin() * phi.sin());
+                                let color = calculate_sky_color(dir, sun_dir);
+                                let mut buffer = buffer_mutex.lock().unwrap();
+                                buffer[i + WIDTH * j] = color.to_int_color();
+                            }
                         }
                     }
+
+
+
+                    sun_theta = sun_theta + consts::PI / 200.0;
                 }
             });
         }
@@ -69,13 +83,15 @@ fn main() {
     //     z: 1.0
     // }).normalize();
 
-    // let scene = Arc::new(Sphere::new(Vector::new(0.0, -55.0, 0.0), 50.0, Characteristics::matte(Vector::one())) +
-    //     Sphere::new(Vector::new(0.0, 0.0, 0.0), 5.0, Characteristics::matte(Vector::one())));
+    // let ground = Plane::new(Vector::new(0.0, 1.0, 0.0), -1.0, Characteristics::matte(Vector::one()));
+    // let sphere = Sphere::new(Vector::zero(), 1.0, Characteristics::matte(Vector::one()));
+
+    // let scene = Arc::new(ground + sphere);
 
     // let start_position = Vector {
     //     x: 0.0,
     //     y: 0.0,
-    //     z: -100.0
+    //     z: -5.0
     // };
     // let target = start_position + forward;
     // let right = forward.cross(UP).normalize();
@@ -91,7 +107,7 @@ fn main() {
 
     // let iterations = 1;
 
-    // for _ in 0..thread_count {
+    // for _ in 0..THREAD_COUNT {
     //     let scene = scene.clone();
     //     let color_counts_mutex = color_counts_mutex.clone();
     //     let acc_colors_mutex = acc_colors_mutex.clone();
@@ -119,7 +135,7 @@ fn main() {
 
     //             let i = x as usize + y as usize * WIDTH;
 
-    //             let mut color_count: u64;
+    //             let color_count: u64;
 
     //             {
     //                 let mut acc_colors = acc_colors_mutex.lock().unwrap();
@@ -132,29 +148,15 @@ fn main() {
 
     //             acc_color = acc_color / color_count as f64;
 
-    //             let r = match acc_color.x * 255.0 {
-    //                 r if r > 255.0 => 255.0,
-    //                 r => r
-    //             };
-
-    //             let g = match acc_color.y * 255.0 {
-    //                 g if g > 255.0 => 255.0,
-    //                 g => g
-    //             };
-
-    //             let b = match acc_color.z * 255.0 {
-    //                 b if b > 255.0 => 255.0,
-    //                 b => b
-    //             };
-
     //             let mut buffer = buffer_mutex.lock().unwrap();
-    //             buffer[i] = (r as u32) << 16 | (g as u32) << 8 | (b as u32);
+    //             buffer[i] = acc_color.to_int_color();
     //         }
     //     });
     // }
 
+    let frame_length = std::time::Duration::from_millis(16);
     while window.is_open() && !window.is_key_down(Key::Escape) {
-        thread::sleep_ms(16);
+        thread::sleep(frame_length);
         window.update_with_buffer(&buffer_mutex.lock().unwrap()).unwrap();
     }
 }

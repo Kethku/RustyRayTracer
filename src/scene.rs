@@ -3,6 +3,7 @@ use vector::*;
 use distance_field::*;
 use atmosphere::*;
 use rand::*;
+use characteristics::*;
 
 pub struct Scene<T: Field> {
     pub field: T
@@ -23,7 +24,7 @@ impl<T: Field> Scene<T> {
         let mut remaining_distance = max_distance;
         loop {
             let distance = self.distance_sampler(current_position);
-            if distance < MINIMUM_THRESHOLD || remaining_distance < 0.0 {
+            if distance < min_distance || remaining_distance < 0.0 {
                 return self.characteristic_sampler(current_position);
             } else {
                 let new_position = current_position + (direction * distance);
@@ -35,25 +36,38 @@ impl<T: Field> Scene<T> {
     }
 
     pub fn trace(&self, position: Vector, direction: Vector, max_distance: f64) -> Vector {
-        let (pos, characteristics) = self.march(position, direction, max_distance, MINIMUM_THRESHOLD);
-        let march_distance = (pos - position).length();
-        let remaining_distance = max_distance - march_distance;
-        if remaining_distance < 0.0 {
-            calculate_sky_color(direction, Vector::new(0.0, 0.0, 1.0).normalize())
-        } else {
-            let new_pos = pos + characteristics.normal * MINIMUM_THRESHOLD;
-            let mut new_dir = characteristics.normal + Vector::random();
+        let sun_dir = Vector::new(0.0, 1.0, 0.0).normalize();
+        let mut accumulated_color = Vector::one();
+        let mut remaining_distance = max_distance;
+        let mut current_pos = position;
+        let mut current_direction = direction;
+        loop {
+            let (pos, characteristics) = self.march(current_pos, current_direction, remaining_distance, MINIMUM_THRESHOLD);
+            let march_distance = (pos - current_pos).length();
+            remaining_distance = remaining_distance - march_distance;
+            if remaining_distance < 0.0 {
+                return accumulated_color * calculate_sky_color(current_direction, sun_dir);
+            } else {
+                let material_color = Vector::interpolate(characteristics.color, Vector::one(), characteristics.reflectance) * (1.0 - characteristics.absorbance);
+                let (sun_pos, _) = self.march(current_pos, sun_dir, max_distance, MINIMUM_THRESHOLD);
+                let sun_dist = (sun_pos - current_pos).length();
+                if sun_dist > max_distance {
+                    accumulated_color = accumulated_color + Vector::one() * material_color * 10.0;
+                }
+                let new_pos = pos + characteristics.normal * MINIMUM_THRESHOLD;
+                let mut new_dir = characteristics.normal + Vector::random();
 
-            if thread_rng().gen_range(0.0, 1.0) < characteristics.reflectance {
-                let reflection_target = direction - 2.0 * characteristics.normal * characteristics.normal.dot(direction);
-                new_dir = Vector::interpolate(reflection_target, new_dir, characteristics.roughness);
+                if thread_rng().gen_range(0.0, 1.0) < characteristics.reflectance {
+                    let reflection_target = current_direction - 2.0 * characteristics.normal * characteristics.normal.dot(current_direction);
+                    new_dir = Vector::interpolate(reflection_target, new_dir, characteristics.roughness);
+                }
+
+                new_dir = new_dir.normalize();
+
+                accumulated_color = accumulated_color * material_color;
+                current_pos = new_pos;
+                current_direction = new_dir;
             }
-
-            new_dir = new_dir.normalize();
-
-            let material_color = Vector::interpolate(characteristics.color, Vector::one(), characteristics.reflectance) * (1.0 - characteristics.absorbance);
-
-            material_color * self.trace(new_pos, new_dir, remaining_distance)
         }
     }
 }

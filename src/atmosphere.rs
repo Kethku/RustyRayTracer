@@ -7,7 +7,7 @@ const RAYLEIGH_SCALE_HEIGHT: f64 = 7994.0;
 const MEI_SCALE_HEIGHT: f64 = 1200.0;
 const PLANET_RADIUS: f64 = 6360e3;
 const ATMOSPHERE_RADIUS: f64 = 6420e3;
-const SUN_INTENSITY: f64 = 20.0;
+const SUN_INTENSITY: f64 = 50.0;
 const SAMPLE_COUNT: i32 = 8;
 const MEI_SCATTERING_COEFFICIENTS_AT_SEA_LEVEL: Vector = Vector {
     x: 21.0e-6,
@@ -21,26 +21,37 @@ const RAYLEIGH_EXTINCTION_COEFFICIENTS_AT_SEA_LEVEL: Vector = Vector {
 };
 
 pub fn calculate_sky_color(direction: Vector, sun_direction: Vector) -> Vector {
-    let atmosphere_geometry =
-        Sphere::new(Vector::zero(), PLANET_RADIUS, Characteristics::default()) +
-        !Sphere::new(Vector::zero(), ATMOSPHERE_RADIUS, Characteristics::default());
     let position = Vector {
         y: PLANET_RADIUS + 100.0,
         x: 0.0,
         z: 0.0
     };
 
-    let view_interesect = atmosphere_intersection(&atmosphere_geometry, position, direction);
+    let view_interesect = atmosphere_intersection(position, direction);
     let mu = direction.dot(sun_direction);
     let rayleigh_phase = rayleigh_phase_function(mu);
     let mei_phase = mei_phase_function(mu);
 
     let color = numerical_integration(position, view_interesect, |pos| {
-        let sun_intersect = atmosphere_intersection(&atmosphere_geometry, pos, sun_direction);
+        let sun_atmosphere_intersect = sphere_intersection(ATMOSPHERE_RADIUS, pos, sun_direction);
+        if sun_atmosphere_intersect == None {
+            return Vector::zero();
+        }
+        let sun_atmosphere_intersect = sun_atmosphere_intersect.unwrap();
+        let atmosphere_dist = (sun_atmosphere_intersect - pos).length_squared();
+        let sun_planet_intersect = sphere_intersection(PLANET_RADIUS, pos, sun_direction);
+        if sun_planet_intersect != None {
+            let sun_planet_intersect = sun_planet_intersect.unwrap();
+            let planet_dist = (sun_planet_intersect - pos).length_squared();
+            if planet_dist < atmosphere_dist {
+                return Vector::zero();
+            }
+        }
+
         let atmosphere_height = pos.length() - PLANET_RADIUS;
 
         let trans_camera_to_pos = transmittance(position, pos);
-        let trans_pos_to_sky = transmittance(pos, sun_intersect);
+        let trans_pos_to_sky = transmittance(pos, sun_atmosphere_intersect);
         let ray_extinction = rayleigh_phase * rayleigh_extinction_coefficients(atmosphere_height);
         let mei_extinction = mei_phase * mei_extinction_coefficients(atmosphere_height);
         SUN_INTENSITY * trans_camera_to_pos * trans_pos_to_sky * (ray_extinction + mei_extinction)
@@ -106,9 +117,49 @@ fn mei_phase_function(mu: f64) -> f64 {
     coefficient * numerator / denominator
 }
 
-fn atmosphere_intersection<T: Field>(atmosphere_scene: &Scene<T>, position: Vector, direction: Vector) -> Vector {
-    let max_distance = ATMOSPHERE_RADIUS * 2.0;
-    let min_distance = ATMOSPHERE_RADIUS / 1000.0;
-    let (new_position, _) = atmosphere_scene.march(position, direction, max_distance, min_distance);
-    new_position
+fn atmosphere_intersection(position: Vector, direction: Vector) -> Vector {
+    let planet_intersect = sphere_intersection(PLANET_RADIUS, position, direction);
+    let atmosphere_intersect = sphere_intersection(ATMOSPHERE_RADIUS, position, direction);
+
+    match (planet_intersect, atmosphere_intersect) {
+        (None, None) => position,
+        (Some(p), None) => p,
+        (None, Some(p)) => p,
+        (Some(p1), Some(p2)) => {
+            let p1_dist = (p1 - position).length_squared();
+            let p2_dist = (p2 - position).length_squared();
+            if p1_dist < p2_dist {
+                p2
+            } else {
+                p1
+            }
+        }
+    }
+}
+
+fn sphere_intersection(radius: f64, position: Vector, direction: Vector) -> Option<Vector> {
+    let l = position * -1.0;
+    let tca = l.dot(direction);
+    let d2 = l.dot(l) - tca * tca;
+    let radius2 = radius * radius;
+    if d2 > radius2 {
+        return None;
+    }
+    let thc = (radius2 - d2).sqrt();
+
+    let t0 = tca - thc;
+    let t1 = tca + thc;
+    if t0 < 0.0 {
+        if t1 < 0.0 {
+            return None;
+        } else {
+            return Some(position + t1 * direction);
+        }
+    } else if t1 < 0.0 {
+        return Some(position + t0 * direction);
+    }
+
+    let t = t0.min(t1);
+
+    return Some(position + t * direction);
 }
