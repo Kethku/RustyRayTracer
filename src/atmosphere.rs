@@ -7,7 +7,7 @@ const RAYLEIGH_SCALE_HEIGHT: f64 = 7994.0;
 const MEI_SCALE_HEIGHT: f64 = 1200.0;
 const PLANET_RADIUS: f64 = 6360e3;
 const ATMOSPHERE_RADIUS: f64 = 6420e3;
-const SUN_INTENSITY: f64 = 50.0;
+const SUN_INTENSITY: f64 = 20.0;
 const SAMPLE_COUNT: i32 = 8;
 const MEI_SCATTERING_COEFFICIENTS_AT_SEA_LEVEL: Vector = Vector {
     x: 21.0e-6,
@@ -26,6 +26,11 @@ pub fn calculate_sky_color(direction: Vector, sun_direction: Vector) -> Vector {
         x: 0.0,
         z: 0.0
     };
+
+    if direction.dot(sun_direction).acos() < 0.009250245 {
+        let sun_intersect = sphere_intersection(ATMOSPHERE_RADIUS, position, sun_direction).unwrap();
+        return Vector::one() * SUN_INTENSITY * transmittance(position, sun_intersect);
+    }
 
     let view_interesect = atmosphere_intersection(position, direction);
     let mu = direction.dot(sun_direction);

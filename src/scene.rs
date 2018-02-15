@@ -9,7 +9,7 @@ pub struct Scene<T: Field> {
     pub field: T
 }
 
-const MINIMUM_THRESHOLD: f64 = 0.01;
+const MINIMUM_THRESHOLD: f64 = 0.001;
 impl<T: Field> Scene<T> {
     pub fn distance_sampler(&self, pos: Vector) -> f64 {
         self.field.distance_sampler(pos)
@@ -35,8 +35,7 @@ impl<T: Field> Scene<T> {
         }
     }
 
-    pub fn trace(&self, position: Vector, direction: Vector, max_distance: f64) -> Vector {
-        let sun_dir = Vector::new(0.0, 1.0, 0.0).normalize();
+    pub fn trace(&self, position: Vector, direction: Vector, sun_dir: Vector, max_distance: f64) -> Vector {
         let mut accumulated_color = Vector::one();
         let mut remaining_distance = max_distance;
         let mut current_pos = position;
@@ -49,11 +48,6 @@ impl<T: Field> Scene<T> {
                 return accumulated_color * calculate_sky_color(current_direction, sun_dir);
             } else {
                 let material_color = Vector::interpolate(characteristics.color, Vector::one(), characteristics.reflectance) * (1.0 - characteristics.absorbance);
-                let (sun_pos, _) = self.march(current_pos, sun_dir, max_distance, MINIMUM_THRESHOLD);
-                let sun_dist = (sun_pos - current_pos).length();
-                if sun_dist > max_distance {
-                    accumulated_color = accumulated_color + Vector::one() * material_color * 10.0;
-                }
                 let new_pos = pos + characteristics.normal * MINIMUM_THRESHOLD;
                 let mut new_dir = characteristics.normal + Vector::random();
 
