@@ -12,10 +12,8 @@ const UP: Vector = Vector {
     y: 1.0,
     z: 0.0
 };
-const THREAD_COUNT: usize = 4;
 
-
-pub fn scene_renderer(colors_mutex: Arc<Mutex<Vec<Vector>>>, width: usize, height: usize) {
+pub fn scene_renderer(colors_mutex: Arc<Mutex<Vec<Vector>>>, width: usize, height: usize, threads: usize) {
     let color_counts_mutex = Arc::new(Mutex::new(vec![0; width * height]));
     let acc_colors_mutex = Arc::new(Mutex::new(vec![Vector::zero(); width * height]));
     let forward = (Vector {
@@ -51,7 +49,7 @@ pub fn scene_renderer(colors_mutex: Arc<Mutex<Vec<Vector>>>, width: usize, heigh
 
     let iterations = 10;
 
-    for _ in 0..THREAD_COUNT {
+    for _ in 0..threads {
         let scene = scene.clone();
         let color_counts_mutex = color_counts_mutex.clone();
         let acc_colors_mutex = acc_colors_mutex.clone();

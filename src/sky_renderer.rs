@@ -7,10 +7,10 @@ use atmosphere::*;
 
 const THREAD_COUNT: usize = 4;
 
-pub fn sky_renderer(buffer_mutex: Arc<Mutex<Vec<u32>>>, width: usize, height: usize) {
+pub fn sky_renderer(buffer_mutex: Arc<Mutex<Vec<u32>>>, width: usize, height: usize, threads: usize) {
     let barrier = Arc::new(Barrier::new(THREAD_COUNT));
     {
-        for t in 0..THREAD_COUNT {
+        for t in 0..threads {
             let buffer_mutex = buffer_mutex.clone();
             let barrier = barrier.clone();
             thread::spawn(move || {
@@ -20,7 +20,7 @@ pub fn sky_renderer(buffer_mutex: Arc<Mutex<Vec<u32>>>, width: usize, height: us
                     for j in 0..height {
                         let y = 2.0 * (j as f64 + 0.5) / (height as f64 - 1.0) - 1.0;
                         for i in 0..width {
-                            if i % THREAD_COUNT == t {
+                            if i % threads == t {
                                 let x = 2.0 * (i as f64 + 0.5) / (width as f64 - 1.0) - 1.0;
                                 let z2 = x * x + y * y;
                                 if z2 <= 1.0 {
