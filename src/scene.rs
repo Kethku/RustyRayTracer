@@ -11,28 +11,12 @@ pub struct Scene<T: Field> {
 
 const MINIMUM_THRESHOLD: f64 = 0.001;
 impl<T: Field> Scene<T> {
-    pub fn distance_sampler(&self, pos: Vector) -> f64 {
-        self.field.distance_sampler(pos)
+    pub fn distance_sampler(&self, pos: Vector, dir: Vector) -> f64 {
+        self.field.ray_distance_sampler(pos, dir)
     }
 
     pub fn characteristic_sampler(&self, pos: Vector) -> (Vector, Characteristics) {
         self.field.characteristic_sampler(pos)
-    }
-
-    pub fn march(&self, position: Vector, direction: Vector, max_distance: f64, min_distance: f64) -> (Vector, Characteristics) {
-        let mut current_position = position;
-        let mut remaining_distance = max_distance;
-        loop {
-            let distance = self.distance_sampler(current_position);
-            if distance < min_distance || remaining_distance < 0.0 {
-                return self.characteristic_sampler(current_position);
-            } else {
-                let new_position = current_position + (direction * distance);
-                let jump_distance = (new_position - current_position).length();
-                current_position = new_position;
-                remaining_distance = remaining_distance - jump_distance;
-            }
-        }
     }
 
     pub fn trace(&self, position: Vector, direction: Vector, sun_dir: Vector, max_distance: f64) -> Vector {
@@ -41,9 +25,10 @@ impl<T: Field> Scene<T> {
         let mut current_pos = position;
         let mut current_direction = direction;
         loop {
-            let (pos, characteristics) = self.march(current_pos, current_direction, remaining_distance, MINIMUM_THRESHOLD);
-            let march_distance = (pos - current_pos).length();
-            remaining_distance = remaining_distance - march_distance;
+            let distance = self.distance_sampler(current_pos, current_direction);
+            let pos = position + direction * distance;
+            let (pos, characteristics) = self.characteristic_sampler(pos);
+            remaining_distance = remaining_distance - distance;
             if remaining_distance < 0.0 {
                 return accumulated_color * calculate_sky_color(current_direction, sun_dir);
             } else {

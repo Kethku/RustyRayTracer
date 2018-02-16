@@ -1,6 +1,7 @@
 use vector::*;
 use distance_field::*;
 use scene::*;
+use geometry::*;
 use std::f64::*;
 
 const RAYLEIGH_SCALE_HEIGHT: f64 = 7994.0;
@@ -28,7 +29,7 @@ pub fn calculate_sky_color(direction: Vector, sun_direction: Vector) -> Vector {
     };
 
     if direction.dot(sun_direction).acos() < 0.009250245 {
-        let sun_intersect = sphere_intersection(ATMOSPHERE_RADIUS, position, sun_direction).unwrap();
+        let sun_intersect = sphere_intersection(Vector::zero(), ATMOSPHERE_RADIUS, position, sun_direction).unwrap();
         return Vector::one() * SUN_INTENSITY * transmittance(position, sun_intersect);
     }
 
@@ -38,13 +39,13 @@ pub fn calculate_sky_color(direction: Vector, sun_direction: Vector) -> Vector {
     let mei_phase = mei_phase_function(mu);
 
     let color = numerical_integration(position, view_interesect, |pos| {
-        let sun_atmosphere_intersect = sphere_intersection(ATMOSPHERE_RADIUS, pos, sun_direction);
+        let sun_atmosphere_intersect = sphere_intersection(Vector::zero(), ATMOSPHERE_RADIUS, pos, sun_direction);
         if sun_atmosphere_intersect == None {
             return Vector::zero();
         }
         let sun_atmosphere_intersect = sun_atmosphere_intersect.unwrap();
         let atmosphere_dist = (sun_atmosphere_intersect - pos).length_squared();
-        let sun_planet_intersect = sphere_intersection(PLANET_RADIUS, pos, sun_direction);
+        let sun_planet_intersect = sphere_intersection(Vector::zero(), PLANET_RADIUS, pos, sun_direction);
         if sun_planet_intersect != None {
             let sun_planet_intersect = sun_planet_intersect.unwrap();
             let planet_dist = (sun_planet_intersect - pos).length_squared();
@@ -123,8 +124,8 @@ fn mei_phase_function(mu: f64) -> f64 {
 }
 
 fn atmosphere_intersection(position: Vector, direction: Vector) -> Vector {
-    let planet_intersect = sphere_intersection(PLANET_RADIUS, position, direction);
-    let atmosphere_intersect = sphere_intersection(ATMOSPHERE_RADIUS, position, direction);
+    let planet_intersect = sphere_intersection(Vector::zero(), PLANET_RADIUS, position, direction);
+    let atmosphere_intersect = sphere_intersection(Vector::zero(), ATMOSPHERE_RADIUS, position, direction);
 
     match (planet_intersect, atmosphere_intersect) {
         (None, None) => position,
@@ -140,31 +141,4 @@ fn atmosphere_intersection(position: Vector, direction: Vector) -> Vector {
             }
         }
     }
-}
-
-fn sphere_intersection(radius: f64, position: Vector, direction: Vector) -> Option<Vector> {
-    let l = position * -1.0;
-    let tca = l.dot(direction);
-    let d2 = l.dot(l) - tca * tca;
-    let radius2 = radius * radius;
-    if d2 > radius2 {
-        return None;
-    }
-    let thc = (radius2 - d2).sqrt();
-
-    let t0 = tca - thc;
-    let t1 = tca + thc;
-    if t0 < 0.0 {
-        if t1 < 0.0 {
-            return None;
-        } else {
-            return Some(position + t1 * direction);
-        }
-    } else if t1 < 0.0 {
-        return Some(position + t0 * direction);
-    }
-
-    let t = t0.min(t1);
-
-    return Some(position + t * direction);
 }

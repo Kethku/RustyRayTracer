@@ -15,6 +15,7 @@ mod atmosphere;
 mod characteristics;
 mod sky_renderer;
 mod scene_renderer;
+mod geometry;
 
 use vector::*;
 

@@ -22,7 +22,7 @@ pub fn scene_renderer(colors_mutex: Arc<Mutex<Vec<Vector>>>, width: usize, heigh
         z: 1.0
     }).normalize();
 
-    let ground = Plane::new(Vector::new(0.0, 1.0, 0.0), -1.0, Characteristics::matte(Vector::one()));
+    let ground = Plane::new(Vector::new(0.0, 1.0, 0.0), Vector::new(0.0, -1.0, 0.0), Characteristics::matte(Vector::one()));
     let mirror = Sphere::new(Vector::new(-0.8, 0.0, 2.0), 1.0, Characteristics::mirror(Vector::one()));
     let sphere = Sphere::new(Vector::new(2.0, 0.0, -1.2), 1.0, Characteristics::matte(Vector::one()));
     let distant = Sphere::new(Vector::new(4.0, 0.0, 20.0), 1.0, Characteristics::matte(Vector::one()));
@@ -71,15 +71,6 @@ pub fn scene_renderer(colors_mutex: Arc<Mutex<Vec<Vector>>>, width: usize, heigh
 
                     let target = target + right * scene_x + up * scene_y;
                     let dir = (target - start_position).normalize();
-
-                    if i == 1 {
-                        let (sky_test, _) = scene.march(start_position, dir, 5000.0, 0.001);
-                        let dist = (sky_test - start_position).length();
-                        if dist > 5000.0 {
-                            acc_color = calculate_sky_color(dir, sun_dir);
-                            break;
-                        }
-                    }
 
                     acc_color = acc_color + scene.trace(
                         start_position,
