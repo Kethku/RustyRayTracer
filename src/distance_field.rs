@@ -5,12 +5,10 @@ use geometry::*;
 use std::f64::*;
 
 pub trait Field {
-    fn ray_distance_sampler(&self, Vector, Vector) -> f64;
-    fn distance_sampler(&self, pos: Vector) -> f64 {
-        let (_, chars) = self.characteristic_sampler(pos);
-        self.ray_distance_sampler(pos, chars.normal)
-    }
-    fn characteristic_sampler(&self, Vector) -> (Vector, Characteristics);
+    fn ray_cast(&self, Vector, Vector) -> Option<Vector>;
+    fn distance(&self, Vector) -> f64;
+    fn normal(&self, Vector) -> Vector;
+    fn characteristics(&self, Vector) -> Characteristics;
 }
 
 pub struct Sphere {
@@ -32,22 +30,23 @@ impl Sphere {
 }
 
 impl Field for Sphere {
-    fn ray_distance_sampler(&self, pos: Vector, dir: Vector) -> f64 {
-        match sphere_intersection(self.position, self.radius, pos, dir) {
-            Some(intersect) => (intersect - pos).length(),
-            None => INFINITY
+    fn ray_cast(&self, pos: Vector, dir: Vector) -> Option<Vector> {
+        if (pos - self.position).length() < self.radius {
+            return Some(pos);
         }
+        sphere_intersection(self.position, self.radius, pos, dir)
     }
 
-    fn distance_sampler(&self, pos: Vector) -> f64 {
+    fn distance(&self, pos: Vector) -> f64 {
         (pos - self.position).length() - self.radius
     }
 
-    fn characteristic_sampler(&self, pos: Vector) -> (Vector, Characteristics) {
-        (pos, Characteristics {
-            normal: (pos - self.position).normalize(),
-            .. self.characteristics
-        })
+    fn normal(&self, pos: Vector) -> Vector {
+        (pos - self.position).normalize()
+    }
+
+    fn characteristics(&self, pos: Vector) -> Characteristics {
+        self.characteristics
     }
 }
 
@@ -63,25 +62,32 @@ impl Plane {
             field: Plane {
                 normal: normal,
                 point: point,
-                characteristics: Characteristics {
-                    normal: normal,
-                    ..chars
-                }
+                characteristics: chars
             }
         }
     }
 }
 
 impl Field for Plane {
-    fn ray_distance_sampler(&self, pos: Vector, dir: Vector) -> f64 {
-        match plane_intersection(self.normal, self.point, pos, dir) {
-            Some(intersect) => (intersect - pos).length(),
-            None => INFINITY
+    fn ray_cast(&self, pos: Vector, dir: Vector) -> Option<Vector> {
+        let dist = self.distance(pos);
+        if dist < 0.0 {
+            Some(pos)
+        } else {
+            plane_intersection(self.normal, self.point, pos, dir)
         }
     }
 
-    fn characteristic_sampler(&self, pos: Vector) -> (Vector, Characteristics) {
-        (pos, self.characteristics)
+    fn distance(&self, pos: Vector) -> f64 {
+        (pos - self.point).dot(self.normal)
+    }
+
+    fn normal(&self, pos: Vector) -> Vector {
+        self.normal
+    }
+
+    fn characteristics(&self, pos: Vector) -> Characteristics {
+        self.characteristics
     }
 }
 
@@ -90,12 +96,20 @@ pub struct Negate<T: Field> {
 }
 
 impl<T: Field> Field for Negate<T> {
-    fn ray_distance_sampler(&self, pos: Vector, dir: Vector) -> f64 {
-        -self.field.ray_distance_sampler(pos, dir)
+    fn ray_cast(&self, pos: Vector, dir: Vector) -> Option<Vector> {
+        self.field.ray_cast(pos, dir)
     }
 
-    fn characteristic_sampler(&self, pos: Vector) -> (Vector, Characteristics) {
-        self.field.characteristic_sampler(pos)
+    fn distance(&self, pos: Vector) -> f64 {
+        -self.field.distance(pos)
+    }
+
+    fn normal(&self, pos: Vector) -> Vector {
+        -self.field.normal(pos)
+    }
+
+    fn characteristics(&self, pos: Vector) -> Characteristics {
+        self.field.characteristics(pos)
     }
 }
 
@@ -105,25 +119,42 @@ pub struct Union<T1: Field, T2: Field> {
 }
 
 impl<T1: Field, T2: Field> Field for Union<T1, T2> {
-    fn ray_distance_sampler(&self, pos: Vector, dir: Vector) -> f64 {
-        let dist1 = self.field1.ray_distance_sampler(pos, dir);
-        let dist2 = self.field2.ray_distance_sampler(pos, dir);
+    fn ray_cast(&self, pos: Vector, dir: Vector) -> Option<Vector> {
+        let p1 = self.field1.ray_cast(pos, dir);
+        let p2 = self.field2.ray_cast(pos, dir);
+        let dist1 = p1.map_or(INFINITY, |p| (p - pos).length_squared());
+        let dist2 = p2.map_or(INFINITY, |p| (p - pos).length_squared());
 
         if dist1 < dist2 {
-            dist1
+            p1
         } else {
-            dist2
+            p2
         }
     }
 
-    fn characteristic_sampler(&self, pos: Vector) -> (Vector, Characteristics) {
-        let dist1 = self.field1.distance_sampler(pos);
-        let dist2 = self.field2.distance_sampler(pos);
+    fn distance(&self, pos: Vector) -> f64 {
+        self.field1.distance(pos).min(self.field2.distance(pos))
+    }
+
+    fn normal(&self, pos: Vector) -> Vector {
+        let dist1 = self.field1.distance(pos);
+        let dist2 = self.field2.distance(pos);
 
         if dist1 < dist2 {
-            self.field1.characteristic_sampler(pos)
+            self.field1.normal(pos)
         } else {
-            self.field2.characteristic_sampler(pos)
+            self.field2.normal(pos)
+        }
+    }
+
+    fn characteristics(&self, pos: Vector) -> Characteristics {
+        let dist1 = self.field1.distance(pos);
+        let dist2 = self.field2.distance(pos);
+
+        if dist1 < dist2 {
+            self.field1.characteristics(pos)
+        } else {
+            self.field2.characteristics(pos)
         }
     }
 }
@@ -134,25 +165,42 @@ pub struct Intersection<T1: Field, T2: Field> {
 }
 
 impl<T1: Field, T2: Field> Field for Intersection<T1, T2> {
-    fn ray_distance_sampler(&self, pos: Vector, dir: Vector) -> f64 {
-        let dist1 = self.field1.ray_distance_sampler(pos, dir);
-        let dist2 = self.field2.ray_distance_sampler(pos, dir);
+    fn ray_cast(&self, pos: Vector, dir: Vector) -> Option<Vector> {
+        let p1 = self.field1.ray_cast(pos, dir);
+        let p2 = self.field2.ray_cast(pos, dir);
+        let dist1 = p1.map_or(INFINITY, |p| (p - pos).length_squared());
+        let dist2 = p2.map_or(INFINITY, |p| (p - pos).length_squared());
 
         if dist1 > dist2 {
-            dist1
+            p1
         } else {
-            dist2
+            p2
         }
     }
 
-    fn characteristic_sampler(&self, pos: Vector) -> (Vector, Characteristics) {
-        let dist1 = self.field1.distance_sampler(pos);
-        let dist2 = self.field2.distance_sampler(pos);
+    fn distance(&self, pos: Vector) -> f64 {
+        self.field1.distance(pos).max(self.field2.distance(pos))
+    }
+
+    fn normal(&self, pos: Vector) -> Vector {
+        let dist1 = self.field1.distance(pos);
+        let dist2 = self.field2.distance(pos);
 
         if dist1 > dist2 {
-            self.field1.characteristic_sampler(pos)
+            self.field1.normal(pos)
         } else {
-            self.field2.characteristic_sampler(pos)
+            self.field2.normal(pos)
+        }
+    }
+
+    fn characteristics(&self, pos: Vector) -> Characteristics {
+        let dist1 = self.field1.distance(pos);
+        let dist2 = self.field2.distance(pos);
+
+        if dist1 > dist2 {
+            self.field1.characteristics(pos)
+        } else {
+            self.field2.characteristics(pos)
         }
     }
 }

@@ -7,11 +7,11 @@ use atmosphere::*;
 
 const THREAD_COUNT: usize = 4;
 
-pub fn sky_renderer(buffer_mutex: Arc<Mutex<Vec<u32>>>, width: usize, height: usize, threads: usize) {
+pub fn sky_renderer(color_mutex: Arc<Mutex<Vec<Vector>>>, width: usize, height: usize, threads: usize) {
     let barrier = Arc::new(Barrier::new(THREAD_COUNT));
     {
         for t in 0..threads {
-            let buffer_mutex = buffer_mutex.clone();
+            let color_mutex = color_mutex.clone();
             let barrier = barrier.clone();
             thread::spawn(move || {
                 let mut sun_theta: f64 = 0.0;
@@ -28,8 +28,8 @@ pub fn sky_renderer(buffer_mutex: Arc<Mutex<Vec<u32>>>, width: usize, height: us
                                     let theta = (1.0 - z2).acos();
                                     let dir = Vector::new(theta.sin() * phi.cos(), theta.cos(), theta.sin() * phi.sin());
                                     let color = calculate_sky_color(dir, sun_dir);
-                                    let mut buffer = buffer_mutex.lock().unwrap();
-                                    buffer[i + width * j] = color.to_int_color();
+                                    let mut colors = color_mutex.lock().unwrap();
+                                    colors[i + width * j] = color;
                                 }
                             }
                         }

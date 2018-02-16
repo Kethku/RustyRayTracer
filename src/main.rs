@@ -35,11 +35,11 @@ fn main() {
                                     ..WindowOptions::default()
                                 }).unwrap();
 
-    // use sky_renderer::*;
-    // sky_renderer(buffer_mutex.clone(), WIDTH, HEIGHT);
+    use sky_renderer::*;
+    sky_renderer(colors_mutex.clone(), WIDTH, HEIGHT, THREADS);
 
-    use scene_renderer::*;
-    scene_renderer(colors_mutex.clone(), WIDTH, HEIGHT, THREADS);
+    // use scene_renderer::*;
+    // scene_renderer(colors_mutex.clone(), WIDTH, HEIGHT, THREADS);
 
     let frame_length = std::time::Duration::from_millis(16);
     while window.is_open() && !window.is_key_down(Key::Escape) {

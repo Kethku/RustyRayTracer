@@ -49,6 +49,8 @@ pub fn scene_renderer(colors_mutex: Arc<Mutex<Vec<Vector>>>, width: usize, heigh
 
     let iterations = 10;
 
+    let sun_dir = Vector::new(0.0, 1.0, 0.0).normalize();
+
     for _ in 0..threads {
         let scene = scene.clone();
         let color_counts_mutex = color_counts_mutex.clone();
@@ -57,7 +59,6 @@ pub fn scene_renderer(colors_mutex: Arc<Mutex<Vec<Vector>>>, width: usize, heigh
 
         thread::spawn(move || {
             loop {
-                let sun_dir = Vector::new(0.4, 0.1, 1.0).normalize();
                 let mut acc_color = Vector::zero();
                 let mut processed_iterations = 0;
                 let mut rng = thread_rng();
@@ -75,9 +76,12 @@ pub fn scene_renderer(colors_mutex: Arc<Mutex<Vec<Vector>>>, width: usize, heigh
                     acc_color = acc_color + scene.trace(
                         start_position,
                         dir,
-                        sun_dir,
-                        5000.0
+                        sun_dir
                     );
+                    match scene.field.ray_cast(start_position, dir) {
+                        Some(intersect) => continue,
+                        None => break
+                    }
                 }
 
                 let i = x as usize + y as usize * width;

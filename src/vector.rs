@@ -156,6 +156,13 @@ impl Mul<Vector> for f64 {
     }
 }
 
+impl Neg for Vector {
+    type Output = Vector;
+    fn neg(self) -> Vector {
+        self * -1.0
+    }
+}
+
 impl Div<f64> for Vector {
     type Output = Vector;
 

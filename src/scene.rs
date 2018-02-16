@@ -11,41 +11,32 @@ pub struct Scene<T: Field> {
 
 const MINIMUM_THRESHOLD: f64 = 0.001;
 impl<T: Field> Scene<T> {
-    pub fn distance_sampler(&self, pos: Vector, dir: Vector) -> f64 {
-        self.field.ray_distance_sampler(pos, dir)
-    }
-
-    pub fn characteristic_sampler(&self, pos: Vector) -> (Vector, Characteristics) {
-        self.field.characteristic_sampler(pos)
-    }
-
-    pub fn trace(&self, position: Vector, direction: Vector, sun_dir: Vector, max_distance: f64) -> Vector {
+    pub fn trace(&self, position: Vector, direction: Vector, sun_dir: Vector) -> Vector {
         let mut accumulated_color = Vector::one();
-        let mut remaining_distance = max_distance;
         let mut current_pos = position;
         let mut current_direction = direction;
         loop {
-            let distance = self.distance_sampler(current_pos, current_direction);
-            let pos = position + direction * distance;
-            let (pos, characteristics) = self.characteristic_sampler(pos);
-            remaining_distance = remaining_distance - distance;
-            if remaining_distance < 0.0 {
-                return accumulated_color * calculate_sky_color(current_direction, sun_dir);
-            } else {
-                let material_color = Vector::interpolate(characteristics.color, Vector::one(), characteristics.reflectance) * (1.0 - characteristics.absorbance);
-                let new_pos = pos + characteristics.normal * MINIMUM_THRESHOLD;
-                let mut new_dir = characteristics.normal + Vector::random();
+            let pos = self.field.ray_cast(current_pos, current_direction);
+            match pos {
+                Some(pos) => {
+                    let characteristics = self.field.characteristics(pos);
+                    let normal = self.field.normal(pos);
+                    let material_color = Vector::interpolate(characteristics.color, Vector::one(), characteristics.reflectance) * (1.0 - characteristics.absorbance);
+                    let new_pos = pos + normal * MINIMUM_THRESHOLD;
+                    let mut new_dir = normal + Vector::random();
 
-                if thread_rng().gen_range(0.0, 1.0) < characteristics.reflectance {
-                    let reflection_target = current_direction - 2.0 * characteristics.normal * characteristics.normal.dot(current_direction);
-                    new_dir = Vector::interpolate(reflection_target, new_dir, characteristics.roughness);
+                    if thread_rng().gen_range(0.0, 1.0) < characteristics.reflectance {
+                        let reflection_target = current_direction - 2.0 * normal * normal.dot(current_direction);
+                        new_dir = Vector::interpolate(reflection_target, new_dir, characteristics.roughness);
+                    }
+
+                    accumulated_color = accumulated_color * material_color;
+                    current_pos = new_pos;
+                    current_direction = new_dir.normalize();
                 }
-
-                new_dir = new_dir.normalize();
-
-                accumulated_color = accumulated_color * material_color;
-                current_pos = new_pos;
-                current_direction = new_dir;
+                None => {
+                    return accumulated_color * calculate_sky_color(current_direction, sun_dir);
+                }
             }
         }
     }

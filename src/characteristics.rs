@@ -2,7 +2,6 @@ use vector::*;
 
 #[derive(Copy, Clone)]
 pub struct Characteristics {
-    pub normal: Vector,
     pub color: Vector,
     pub roughness: f64,
     pub reflectance: f64,
@@ -12,7 +11,6 @@ pub struct Characteristics {
 impl Characteristics {
     pub fn default() -> Characteristics {
         Characteristics {
-            normal: Vector::zero(),
             color: Vector::zero(),
             roughness: 0.0,
             reflectance: 0.0,
@@ -22,7 +20,6 @@ impl Characteristics {
 
     pub fn mirror(color: Vector) -> Characteristics {
         Characteristics {
-            normal: Vector::zero(),
             color: color,
             roughness: 0.0,
             reflectance: 1.0,
@@ -32,7 +29,6 @@ impl Characteristics {
 
     pub fn matte(color: Vector) -> Characteristics {
         Characteristics {
-            normal: Vector::zero(),
             color: color,
             roughness: 1.0,
             reflectance: 0.0,
