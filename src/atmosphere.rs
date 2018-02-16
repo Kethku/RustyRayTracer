@@ -64,7 +64,7 @@ pub fn calculate_sky_color(direction: Vector, sun_direction: Vector) -> Vector {
     color
 }
 
-fn transmittance(a: Vector, b: Vector) -> Vector {
+pub fn transmittance(a: Vector, b: Vector) -> Vector {
     let result = numerical_integration(a, b, |pos| {
         let atmosphere_distance = pos.length() - PLANET_RADIUS;
         rayleigh_extinction_coefficients(atmosphere_distance) +

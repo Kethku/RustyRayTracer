@@ -20,9 +20,9 @@ use distance_field::*;
 use atmosphere::*;
 use characteristics::*;
 
-const WIDTH: usize = 1920;
-const HEIGHT: usize = 1080;
-const THREAD_COUNT: usize = 8;
+const WIDTH: usize = 960;
+const HEIGHT: usize = 540;
+const THREAD_COUNT: usize = 4;
 
 const UP: Vector = Vector {
     x: 0.0,
@@ -37,7 +37,7 @@ fn main() {
                                 WIDTH,
                                 HEIGHT,
                                 WindowOptions {
-                                    scale: Scale::FitScreen,
+                                    scale: Scale::X1,
                                     ..WindowOptions::default()
                                 }).unwrap();
 
